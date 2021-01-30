@@ -1,2 +1,3 @@
 from curvefitter.levenberg_marquardt_algo import *
+from curvefitter.gompertz_model import GompertzModelFunc
 from curvefitter.sigmoid_model import SigmoidModelFunc
