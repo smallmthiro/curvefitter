@@ -92,9 +92,13 @@ class SigmoidCurveFunc(lmalgo.ICurveFunc):
     def __init__(self,
                  exec_expr: typing.Callable[
                      [np.ndarray, float, float, float, float], np.ndarray],
+                 exec_inverse_expr: typing.Callable[
+                     [np.ndarray, float, float, float, float], np.ndarray],
                  beta: np.ndarray) -> None:
         self.__exec_expr: typing.Callable[
             [np.ndarray, float, float, float, float], np.ndarray] = exec_expr
+        self.__exec_inverse_expr: typing.Callable[
+            [np.ndarray, float, float, float, float], np.ndarray] = exec_inverse_expr
         self.__beta: np.ndarray = beta
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
@@ -108,6 +112,18 @@ class SigmoidCurveFunc(lmalgo.ICurveFunc):
         c: float = self.__beta[2]
         d: float = self.__beta[3]
         return self.__exec_expr(x, a, b, c, d)
+
+    def inverse(self, y: np.ndarray) -> np.ndarray:
+        if y.ndim != 1:
+            raise ValueError('y is not a one-dimensional array.')
+        if self.__beta.shape != (4,):
+            raise ValueError('Incorrect number of beta parameters.')
+
+        a: float = self.__beta[0]
+        b: float = self.__beta[1]
+        c: float = self.__beta[2]
+        d: float = self.__beta[3]
+        return self.__exec_inverse_expr(y, a, b, c, d)
 
     def get_beta(self) -> np.ndarray:
         return self.__beta
@@ -131,6 +147,7 @@ class SigmoidModelFunc(lmalgo.IModelFunc):
         dy: sympy.Symbol = sympy.Symbol('dy')
         model_slope_expr_a: sympy.Expr = sympy.solve(
             (dy - sympy.diff(model_expr, x)).subs([(x, 0), (c, 0), (d, 0)]), a)[0]
+        model_inverse_expr: sympy.Expr = sympy.solve(residual_expr, x)[0]
 
         self.__exec_model_expr: typing.Callable[
             [np.ndarray, float, float, float, float], np.ndarray] = sympy.lambdify(
@@ -153,6 +170,9 @@ class SigmoidModelFunc(lmalgo.IModelFunc):
         self.__exec_model_slope_expr_a: typing.Callable[
             [float, float], float] = sympy.lambdify(
                 (dy, b), model_slope_expr_a, 'numpy')
+        self.__exec_model_inverse_expr: typing.Callable[
+            [np.ndarray, float, float, float, float], np.ndarray] = sympy.lambdify(
+                (y, a, b, c, d), model_inverse_expr, 'numpy')
 
     def __call__(self, x: np.ndarray, beta: np.ndarray) -> np.ndarray:
         if x.ndim != 1:
@@ -184,4 +204,4 @@ class SigmoidModelFunc(lmalgo.IModelFunc):
         return SigmoidInitialEstimateBetaCalculator(self.__exec_model_slope_expr_a)
 
     def create_curve_func(self, beta: np.ndarray) -> lmalgo.ICurveFunc:
-        return SigmoidCurveFunc(self.__exec_model_expr, beta)
+        return SigmoidCurveFunc(self.__exec_model_expr, self.__exec_model_inverse_expr, beta)

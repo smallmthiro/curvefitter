@@ -28,6 +28,10 @@ class ICurveFunc(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def inverse(self, y: np.ndarray) -> np.ndarray:
+        pass
+
+    @abc.abstractmethod
     def get_beta(self) -> np.ndarray:
         pass
 

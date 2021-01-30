@@ -112,9 +112,13 @@ class GompertzCurveFunc(lmalgo.ICurveFunc):
     def __init__(self,
                  exec_expr: typing.Callable[
                      [np.ndarray, float, float, float, float, float], np.ndarray],
+                 exec_inverse_expr: typing.Callable[
+                     [np.ndarray, float, float, float, float, float], np.ndarray],
                  beta: np.ndarray) -> None:
         self.__exec_expr: typing.Callable[
             [np.ndarray, float, float, float, float, float], np.ndarray] = exec_expr
+        self.__exec_inverse_expr: typing.Callable[
+            [np.ndarray, float, float, float, float, float], np.ndarray] = exec_inverse_expr
         self.__beta: np.ndarray = beta
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
@@ -129,6 +133,19 @@ class GompertzCurveFunc(lmalgo.ICurveFunc):
         u: float = self.__beta[3]
         v: float = self.__beta[4]
         return self.__exec_expr(x, a, b, c, u, v)
+
+    def inverse(self, y: np.ndarray) -> np.ndarray:
+        if y.ndim != 1:
+            raise ValueError('y is not a one-dimensional array.')
+        if self.__beta.shape != (5,):
+            raise ValueError('Incorrect number of beta parameters.')
+
+        a: float = self.__beta[0]
+        b: float = self.__beta[1]
+        c: float = self.__beta[2]
+        u: float = self.__beta[3]
+        v: float = self.__beta[4]
+        return self.__exec_inverse_expr(y, a, b, c, u, v)
 
     def get_beta(self) -> np.ndarray:
         return self.__beta
@@ -155,6 +172,9 @@ class GompertzModelFunc(lmalgo.IModelFunc):
         dy: sympy.Symbol = sympy.Symbol('dy')
         model_slope_expr_c: sympy.Expr = sympy.solve(
             (dy - sympy.diff(model_expr, x)).subs([(x, 0), (u, 0), (v, 0)]), c)[0]
+        model_inverse_expr: sympy.Expr = sympy.solve(
+            residual_expr, (x - u))[0] + u
+        # sympy.solve(residual_expr, x)[0] <- Unsolvable. It seems to be a bug of sympy. Substitute above.
 
         self.__exec_model_expr: typing.Callable[
             [np.ndarray, float, float, float, float, float], np.ndarray] = sympy.lambdify(
@@ -180,6 +200,9 @@ class GompertzModelFunc(lmalgo.IModelFunc):
         self.__exec_model_slope_expr_c: typing.Callable[
             [float, float, float], float] = sympy.lambdify(
                 (dy, a, b), model_slope_expr_c, 'numpy')
+        self.__exec_model_inverse_expr: typing.Callable[
+            [np.ndarray, float, float, float, float, float], np.ndarray] = sympy.lambdify(
+                (y, a, b, c, u, v), model_inverse_expr, 'numpy')
 
     def __call__(self, x: np.ndarray, beta: np.ndarray) -> np.ndarray:
         if x.ndim != 1:
@@ -214,4 +237,4 @@ class GompertzModelFunc(lmalgo.IModelFunc):
         return GompertzInitialEstimateBetaCalculator(self.__exec_model_slope_expr_c)
 
     def create_curve_func(self, beta: np.ndarray) -> lmalgo.ICurveFunc:
-        return GompertzCurveFunc(self.__exec_model_expr, beta)
+        return GompertzCurveFunc(self.__exec_model_expr, self.__exec_model_inverse_expr, beta)
