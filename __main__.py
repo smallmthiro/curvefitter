@@ -1,4 +1,5 @@
 import csv
+import os
 import sys
 import typing
 from enum import Enum
@@ -104,6 +105,19 @@ def main(args: typing.List[str]):
     y_cut_out_range: np.ndarray = np.array(
         [y_cut_out_range_step * float(i) + y_cut_out_range_min for i in reversed(range(x_cut_out_range_div))])
     x_cut_out_range: np.ndarray = curve_func.inverse(y_cut_out_range)
+
+    output_file_value: np.ndarray = np.stack([
+        np.array(list(reversed(range(x_cut_out_range_div)))),
+        x_cut_out_range,
+        y_cut_out_range]).T
+
+    output_file_name: str = os.path.basename(input_data_file) \
+        + '__' + model_type.name \
+        + '_cutout_{:.3f}_{:.3f}_{:d}.csv'.format(
+            x_cut_out_range_min, x_cut_out_range_max, x_cut_out_range_div)
+
+    np.savetxt(output_file_name, output_file_value,
+               fmt=['%d', '%f', '%f'], delimiter=',')
 
     plt.subplots_adjust(bottom=0.275)
     plt.scatter(x, y, s=5, color='red', alpha=0.7, label='test data')
